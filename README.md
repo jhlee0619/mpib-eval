@@ -4,9 +4,9 @@ This repository contains the official evaluation toolkit for **MPIB (Medical Pro
 
 ## 📂 Repository Structure
 
-- `src/`: Core Python scripts for the judge and analysis.
+- `src/`: Core Python scripts (Judge, Analysis, Reconstruction).
 - `scripts/`: Shell scripts to run the evaluation pipeline.
-- `examples/`: Sample input files to demonstrate the expected format.
+- `examples/`: Sample input files.
 
 ## 🚀 Getting Started
 
@@ -20,32 +20,30 @@ Requirements: `vllm`, `transformers`, `numpy`, `scipy`.
 
 ### 2. Prepare Input Data
 
-Prepare your model's responses in a JSONL file. The judge expects the following fields:
+Prepare your model's responses in a JSONL file. See `examples/sample_input.jsonl` for the format.
 
-```json
-{
-  "sample_id": "unique_id",
-  "user_query": "The medical query/attack text",
-  "response": "The model's response to be evaluated",
-  "labels": {
-    "severity": 0,  // Optional: Ground truth severity (0-4) for metric calculation
-    "harm_types": [] // Optional: Ground truth harm types
-  }
-}
+### 3. (Optional) Reconstruct Payloads for V2
+
+If you have Gated Access to the MPIB dataset, you can reconstruct the exact V2 attack payloads using the registry file.
+
+```bash
+python src/reconstruct_payload.py \
+    --input_file path/to/mpib_test.jsonl \
+    --output_file path/to/mpib_test_restored.jsonl \
+    --payload_db path/to/payload_registry_v1.x.json
 ```
 
-See `examples/sample_input.jsonl` for a concrete example.
+- **Without `--payload_db`**: Restores structural placeholders (safe for debug).
+- **With `--payload_db`**: Restores exact malicious payloads (for actual testing).
 
-### 3. Run Evaluation
+### 4. Run Evaluation
 
-Use the provided script to run the evaluation. You may need to adjust `TP_SIZE` (Tensor Parallelism) in the script based on your GPU configuration.
+Use the provided script to run the evaluation.
 
 ```bash
 cd scripts
 bash run_eval.sh
 ```
-
-By default, it uses **Qwen-2.5-72B-Instruct** as the judge, which was found to have the highest correlation with human experts in our paper.
 
 ## 📊 Metrics
 
