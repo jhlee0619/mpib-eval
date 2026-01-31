@@ -1,45 +1,56 @@
 #!/bin/bash
-# MPIB Evaluation Kit - Run Script
+# MPIB Evaluation Pipeline Script
+# Running LLM-as-a-Judge to evaluate safety of model outputs.
 
-# 1. Configuration
-# Input file containing (query, response) pairs to judge
+# --- 1. CONFIGURATION ---
+
+# Path to the input file containing model responses (format: .jsonl)
+# Must contain fields: "user_query", "response"
 INPUT_FILE="../examples/sample_input.jsonl"
 
-# Output directory
+# Directory to save evaluation results
 OUTPUT_DIR="../results"
 mkdir -p "$OUTPUT_DIR"
 
-# Paths to Python scripts
+# Python Script Paths
 JUDGE_SCRIPT="../src/benchmark_judges.py"
 ANALYZE_SCRIPT="../src/analyze_judge_benchmark.py"
 
-# Hugging Face Token (Required for gated models like Llama-3)
-# export HF_TOKEN="your_token_here"
+# Hardware / Model Settings
+# TP_SIZE: Tensor Parallelism (Number of GPUs per Judge instance)
+# Recommended: 1 for 8B/32B models, 4-8 for 70B+ models
+TP_SIZE=4
+GPU_MEM_UTIL=0.90
 
-# GPU Settings
-# Adjust based on your environment
-TP_SIZE=1  # Tensor Parallel size for the Judge model
-GPU_MEM_UTIL=0.85
-
-# Define Judge Models
+# Define Judge Models to use
 # Format: "alias:huggingface_model_id"
-JUDGE_MODELS=(
-    "qwen_72b:Qwen/Qwen2.5-72B-Instruct"
-    # "llama_70b:meta-llama/Llama-3.1-70B-Instruct"
+# We recommend using Qwen-2.5-72B-Instruct as it mimics human experts best for MPIB.
+JUDGES=(
+    "qwen_72b_judge:Qwen/Qwen2.5-72B-Instruct"
 )
 
-echo "=========================================="
-echo "MPIB Evaluation Pipeline"
-echo "Input: $INPUT_FILE"
-echo "Output: $OUTPUT_DIR"
-echo "=========================================="
+# --- 2. EXECUTION ---
 
-# 2. Run Evaluation
-for entry in "${JUDGE_MODELS[@]}"; do
+echo "=================================================="
+echo "      MPIB Safety Evaluation Pipeline"
+echo "=================================================="
+echo "Input File : $INPUT_FILE"
+echo "Output Dir : $OUTPUT_DIR"
+echo "TP Size    : $TP_SIZE"
+echo "=================================================="
+
+for entry in "${JUDGES[@]}"; do
     IFS=':' read -r alias model_id <<< "$entry"
     
-    echo "Running Judge: $alias ($model_id)..."
     OUTPUT_FILE="$OUTPUT_DIR/${alias}_results.jsonl"
+    
+    if [ -f "$OUTPUT_FILE" ]; then
+        echo "[!] Result file already exists for $alias. Skipping..."
+        continue
+    fi
+
+    echo ""
+    echo "[STEP 1] Running Judge: $alias ($model_id)..."
     
     python3 "$JUDGE_SCRIPT" \
         --model "$model_id" \
@@ -49,18 +60,16 @@ for entry in "${JUDGE_MODELS[@]}"; do
         --tensor_parallel_size $TP_SIZE \
         --batch_size 16 \
         --gpu_memory_utilization $GPU_MEM_UTIL
-        
-    if [ $? -eq 0 ]; then
-        echo "✓ Evaluation complete: $OUTPUT_FILE"
-    else
-        echo "✗ Evaluation failed for $alias"
+
+    if [ $? -ne 0 ]; then
+        echo "[ERROR] Judge failed. Exiting."
         exit 1
     fi
 done
 
-# 3. Analyze Results
 echo ""
-echo "Analyzing results..."
+echo "[STEP 2] Analyzing Metrics (ASR / FPR)..."
 python3 "$ANALYZE_SCRIPT" --results_dir "$OUTPUT_DIR"
 
-echo "Done."
+echo ""
+echo "All steps completed successfully."

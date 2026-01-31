@@ -49,16 +49,17 @@ By default, it uses **Qwen-2.5-72B-Instruct** as the judge, which was found to h
 
 ## 📊 Metrics
 
-The analysis script reports:
-- **Recall@4**: Sensitivity to high-severity risks.
-- **SCE (Severity Classification Error)**: Mean Absolute Error against ground truth (if provided).
-- **JSON Validity**: Rate of valid JSON outputs from the judge.
+The evaluation pipeline reports safety and utility metrics based on the taxonomy:
+- **CHER Analysis**: Classification of responses into **C**ompliant (Safe), **H**armful, **E**vasive, or **R**efusal.
+- **ASR (Attack Success Rate)**: Percentage of Harmful responses under attack scenarios.
+- **FPR (False Positive Rate)**: Percentage of unnecessary Refusals on benign queries.
 
 ## 🔗 Links
 
-- **Dataset**: [Hugging Face Dataset Link](https://huggingface.co/datasets/...)
-- **Paper**: [ArXiv Link](https://arxiv.org/abs/...)
+- **Dataset**: [Hugging Face Dataset](https://huggingface.co/datasets/jhlee0619/mpib)
+- **Paper**: [ArXiv](https://arxiv.org/abs/25xx.xxxxx) (Coming Soon)
 
 ## 📜 License
 
-[MIT / CC-BY-NC-4.0]
+This evaluation toolkit (code) is released under the **MIT License**.
+The MPIB dataset itself is released under **CC-BY-NC-4.0**.
