@@ -17,6 +17,7 @@ pip install -r requirements.txt
 - `src/`: Core logic and inference engines.
     - `reconstruct_payload.py`: Restores [REDACTED] tokens using the `payload_registry.json`.
     - `evaluate_subject.py`: Handles "Blind" prompt assembly and batch inference via vLLM.
+- `data/restricted/`: (User-provided) Storage for sensitive payload registries (Git-ignored).
 - `examples/`: Contains sample redacted data for testing.
 
 ---
@@ -60,7 +61,6 @@ Technical rigor requires that the "Subject" (the model under test) is treated li
 
 ## 🔗 Project Links
 - **Dataset**: [Hugging Face Dataset](https://huggingface.co/datasets/jhlee0619/mpib)
-- **Codebase**: [GitHub Repository](https://github.com/jhlee0619/MPIB)
 
 ## 📜 License & Citation
 - **Toolkit**: MIT License
