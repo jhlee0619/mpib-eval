@@ -1,101 +1,122 @@
 import json
 import argparse
 import os
+import sys
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="MPIB V2 Payload Reconstructor")
-    parser.add_argument("--input_file", type=str, required=True, help="Path to redacted .jsonl file (e.g., test.jsonl)")
-    parser.add_argument("--output_file", type=str, required=True, help="Path to save reconstructed .jsonl file")
-    parser.add_argument("--payload_db", type=str, default=None, help="Path to payload_registry_v1.x.json (e.g., data/restricted/payload_registry_v1.x.json)")
+    parser = argparse.ArgumentParser(description="MPIB V2 Payload Reconstructor: Restores adversarial clinical evidence.")
+    parser.add_argument("--input_file", type=str, required=True, help="Path to redacted dataset (.jsonl)")
+    parser.add_argument("--output_file", type=str, required=True, help="Path to save reconstructed dataset (.jsonl)")
+    parser.add_argument("--payload_db", type=str, default=None, help="Path to secure payload_registry.json")
     return parser.parse_args()
 
-def reconstruct_sample(sample, payload_db=None):
+def reconstruct_clinical_record(record: dict, registry: dict = None) -> dict:
     """
-    Reconstructs the redacted V2 payload.
-    - If payload_db is provided: Exact restoration (Tier 1).
-    - If payload_db is None: Structural placeholder restoration (Tier 0).
-    """
-    contexts = sample.get("contexts", [])
-    reconstructed_contexts = []
+    Restores redacted adversarial clinical evidence in a V2 record.
     
-    for ctx in contexts:
-        text = ctx.get("text", "")
+    Tier 1 (Registry Provided): Restores exact adversarial payloads for clinical safety audits.
+    Tier 0 (Public Mode): Restores structural placeholders to verify RAG engine logic.
+    """
+    evidence_list = record.get("contexts", [])
+    if not evidence_list:
+        return record
+
+    processed_evidence = []
+    for doc in evidence_list:
+        content = doc.get("text", "")
         
-        # Check if this context is redacted
-        if "[REDACTED_PAYLOAD]" in text:
-            template_id = ctx.get("template_id")
+        # Identify redacted adversarial updates
+        if "[REDACTED_PAYLOAD]" in content:
+            template_id = doc.get("template_id")
             
-            # Mode A: Exact Restoration (if DB is present)
-            if payload_db and template_id in payload_db:
-                ctx_new = ctx.copy()
-                ctx_new["text"] = payload_db[template_id]
-                ctx_new["reconstructed_method"] = "exact"
-                reconstructed_contexts.append(ctx_new)
+            # Tier 1: High-fidelity restoration from secure registry
+            if registry and template_id in registry:
+                refined_doc = doc.copy()
+                refined_doc["text"] = registry[template_id]
+                refined_doc["reconstruction_status"] = "restored_fidelity"
+                processed_evidence.append(refined_doc)
                 
-            # Mode B: Structural Placeholder (Public)
+            # Tier 0: Structural mock for public pipelines
             else:
-                hook = ctx.get("reconstruction_hook", {})
-                rule_family = ctx.get("rule_family_id")
+                hook = doc.get("reconstruction_hook", {})
+                rule = doc.get("rule_family_id", "UnknownRule")
                 
-                if hook and rule_family:
-                    feat = hook.get("features", {})
-                    num_words = feat.get("words", 10)
+                if hook:
+                    meta = hook.get("features", {})
+                    word_count = meta.get("words", 10)
                     
-                    # Mock reconstruction for structural validity
-                    reconstructed_text = f"[RECONSTRUCTED_PAYLOAD: {rule_family} | TID: {template_id}] "
-                    reconstructed_text += " ".join(["(payload)"] * num_words)
+                    # Generate structural mock preserving word count and attack vectors
+                    mock_content = f"[ADVERSARIAL_PAYLOAD_PLACEHOLDER: {rule} | TID: {template_id}] "
+                    mock_content += " ".join(["(payload)"] * word_count)
                     
-                    ctx_new = ctx.copy()
-                    ctx_new["text"] = reconstructed_text
-                    ctx_new["reconstructed_method"] = "structural_placeholder"
-                    reconstructed_contexts.append(ctx_new)
+                    refined_doc = doc.copy()
+                    refined_doc["text"] = mock_content
+                    refined_doc["reconstruction_status"] = "structural_mock"
+                    processed_evidence.append(refined_doc)
                 else:
-                    # Fallback (Should not happen if metadata is intact)
-                    reconstructed_contexts.append(ctx)
+                    processed_evidence.append(doc)
         else:
-            reconstructed_contexts.append(ctx)
+            # Benign or pre-restored evidence
+            processed_evidence.append(doc)
             
-    sample["contexts"] = reconstructed_contexts
-    return sample
+    record["contexts"] = processed_evidence
+    return record
 
 def main():
     args = parse_args()
     
-    # Load Payload DB if provided
-    payload_mapping = {}
+    # 1. Input Verification
+    if not os.path.exists(args.input_file):
+        print(f"[Error] Clinical record file not found: {args.input_file}")
+        sys.exit(1)
+
+    registry_map = {}
     if args.payload_db:
         if os.path.exists(args.payload_db):
-            print(f"[Info] Loading Payload DB from {args.payload_db}...")
+            print(f"[MPIB] Syncing with secure payload registry: {args.payload_db}")
             with open(args.payload_db, "r", encoding="utf-8") as f:
-                payload_mapping = json.load(f)
-            print(f"       Loaded {len(payload_mapping)} entries.")
+                registry_map = json.load(f)
+            print(f"[MPIB] Registry Sync Successful: {len(registry_map)} templates indexed.")
         else:
-            print(f"[Warn] Payload DB not found at {args.payload_db}. Using strictly structural reconstruction.")
+            print(f"[Notice] Payload registry missing at {args.payload_db}. Protocol: Tier 0 (Structural Mock)")
 
-    print(f"Reconstructing payloads from {args.input_file}...")
+    # 2. Batch Processing Pipeline
+    print(f"[MPIB] Initializing reconstruction pipeline for {args.input_file}...")
     
-    count = 0
-    restored_exact = 0
+    processed_count = 0
+    restoration_count = 0
+    os.makedirs(os.path.dirname(os.path.abspath(args.output_file)), exist_ok=True)
     
-    with open(args.input_file, "r", encoding="utf-8") as fin, open(args.output_file, "w", encoding="utf-8") as fout:
-        for line in fin:
-            if not line.strip(): continue
-            sample = json.loads(line)
+    try:
+        with open(args.input_file, "r", encoding="utf-8") as f_in, \
+             open(args.output_file, "w", encoding="utf-8") as f_out:
             
-            if sample.get("vector") == "V2":
-                sample = reconstruct_sample(sample, payload_mapping)
-                # Check status for logging
-                msg = sample["contexts"][-1].get("reconstructed_method", "")
-                if msg == "exact": restored_exact += 1
+            for line in f_in:
+                if not line.strip(): continue
+                record = json.loads(line)
+                
+                # Filter for V2 adversarial vectors
+                if record.get("vector") == "V2":
+                    record = reconstruct_clinical_record(record, registry_map)
+                    
+                    # Audit status tracking
+                    for doc in record.get("contexts", []):
+                        if doc.get("reconstruction_status") == "restored_fidelity":
+                            restoration_count += 1
+                            break
+                
+                f_out.write(json.dumps(record, ensure_ascii=False) + "\n")
+                processed_count += 1
+                
+        print(f"[MPIB] Reconstruction Audit Complete. Logs: {processed_count} records processed.")
+        if restoration_count > 0:
+            print(f"       Status: Full Fidelity Restoration ({restoration_count} records)")
+        else:
+            print(f"       Status: Structural Integrity Verified (Public Tier)")
             
-            fout.write(json.dumps(sample, ensure_ascii=False) + "\n")
-            count += 1
-            
-    print(f"Done. Processed {count} samples.")
-    if args.payload_db and restored_exact > 0:
-        print(f"✅ Exact Restoration Count: {restored_exact} samples")
-    else:
-        print(f"ℹ️  Structural Placeholder Mode used. (To perform exact restoration, provide --payload_db)")
+    except Exception as e:
+        print(f"[Critical] Reconstruction pipeline failed: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -1,63 +1,68 @@
-# MPIB Evaluation Toolkit
+# MPIB Inference Toolkit
 
-This repository contains the official evaluation toolkit for **MPIB (Medical Prompt Injection Benchmark)**. It provides the **LLM-as-a-Judge** pipeline used to evaluate the safety and helpfulness of medical LLMs against the MPIB dataset.
+This repository contains the official inference toolkit for **MPIB (Medical Prompt Injection Benchmark)**. It provides a streamlined, production-ready pipeline to test medical LLMs against adversarial prompt injections in a **Blind Evaluation** setting.
 
-## 📂 Repository Structure
+## 📦 Installation
 
-- `src/`: Core Python scripts (Judge, Analysis, Reconstruction).
-- `scripts/`: Shell scripts to run the evaluation pipeline.
-- `examples/`: Sample input files.
-
-## 🚀 Getting Started
-
-### 1. Installation
+This toolkit requires Python 3.9+ and CUDA-capable hardware for vLLM inference.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Requirements: `vllm`, `transformers`, `numpy`, `scipy`.
+---
 
-### 2. Prepare Input Data
+## 📂 Repository Structure
 
-Prepare your model's responses in a JSONL file. See `examples/sample_input.jsonl` for the format.
+- `src/`: Core logic and inference engines.
+    - `reconstruct_payload.py`: Restores [REDACTED] tokens using the `payload_registry.json`.
+    - `evaluate_subject.py`: Handles "Blind" prompt assembly and batch inference via vLLM.
+- `examples/`: Contains sample redacted data for testing.
 
-### 3. (Optional) Reconstruct Payloads for V2
+---
 
-If you have Gated Access to the MPIB dataset, you can reconstruct the exact V2 attack payloads using the registry file.
+## 🚀 Subject Evaluation Workflow
 
+The toolkit implements a "Reconstruct -> Assemble -> Infer" flow to simulate real-world clinical RAG environments.
+
+### Step 1: Clinical Evidence Reconstruction
+V2 payloads are redacted to prevent the propagation of harmful medical advice. Restore them using your registry:
 ```bash
-python src/reconstruct_payload.py \
-    --input_file path/to/mpib_test.jsonl \
-    --output_file path/to/mpib_test_restored.jsonl \
-    --payload_db path/to/payload_registry_v1.x.json
+python3 src/reconstruct_payload.py \
+    --input_file examples/sample_redacted.jsonl \
+    --output_file results/reconstructed.jsonl \
+    --payload_db data/restricted/payload_registry.json
 ```
 
-- **Without `--payload_db`**: Restores structural placeholders (safe for debug).
-- **With `--payload_db`**: Restores exact malicious payloads (for actual testing).
-
-### 4. Run Evaluation
-
-Use the provided script to run the evaluation.
+### Step 2: Blind Subject Inference (Role Obfuscation)
+Run the model through the clinical audit. This step prevents **Label Leakage** by masking internal attack roles into generic clinical terms.
 
 ```bash
-cd scripts
-bash run_eval.sh
+python3 src/evaluate_subject.py \
+    --model "BioMistral/BioMistral-7B" \
+    --input_file results/reconstructed.jsonl \
+    --output_file results/subject_responses.jsonl \
+    --tensor_parallel_size 1 \
+    --gpu_memory_utilization 0.90
 ```
 
-## 📊 Metrics
+---
 
-The evaluation pipeline reports safety and utility metrics based on the taxonomy:
-- **CHER Analysis**: Classification of responses into **C**ompliant (Safe), **H**armful, **E**vasive, or **R**efusal.
-- **ASR (Attack Success Rate)**: Percentage of Harmful responses under attack scenarios.
-- **FPR (False Positive Rate)**: Percentage of unnecessary Refusals on benign queries.
+## 🛡️ The Blind Evaluation Principle
+Technical rigor requires that the "Subject" (the model under test) is treated like a clinician in a real-world setting.
+- **Asymmetric Information**: Only the Evaluator/Judge knows which documents are "poisoned".
+- **Role Transformation**:
+    - `benign_evidence` → `clinical_evidence`
+    - `poisoned_update` → `clinical_update`
+- **Identifier Masking**: Specific document IDs are replaced with generic `REF_X` tags.
 
-## 🔗 Links
+---
 
+## 🔗 Project Links
 - **Dataset**: [Hugging Face Dataset](https://huggingface.co/datasets/jhlee0619/mpib)
-- **Paper**: [ArXiv](https://arxiv.org/abs/25xx.xxxxx) (Coming Soon)
+- **Codebase**: [GitHub Repository](https://github.com/jhlee0619/MPIB)
 
-## 📜 License
-
-This evaluation toolkit (code) is released under the **MIT License**.
-The MPIB dataset itself is released under **CC-BY-NC-4.0**.
+## 📜 License & Citation
+- **Toolkit**: MIT License
+- **Dataset**: CC-BY-NC-4.0
+- **Citation**: Please cite our paper if you use this benchmark.
