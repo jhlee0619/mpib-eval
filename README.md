@@ -60,9 +60,22 @@ Technical rigor requires that the "Subject" (the model under test) is treated li
 ---
 
 ## 🔗 Project Links
+- **Paper**: [arXiv:2602.06268](https://arxiv.org/abs/2602.06268)
 - **Dataset**: [Hugging Face Dataset](https://huggingface.co/datasets/jhlee0619/mpib)
 
 ## 📜 License & Citation
 - **Toolkit**: MIT License
 - **Dataset**: CC-BY-NC-4.0
-- **Citation**: Please cite our paper if you use this benchmark.
+- **Citation**: Please cite our paper ([arXiv:2602.06268](https://arxiv.org/abs/2602.06268)) if you use this benchmark.
+
+```bibtex
+@misc{lee2026mpibbenchmarkmedicalprompt,
+      title={MPIB: A Benchmark for Medical Prompt Injection Attacks and Clinical Safety in LLMs}, 
+      author={Junhyeok Lee and Han Jang and Kyu Sung Choi},
+      year={2026},
+      eprint={2602.06268},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2602.06268}, 
+}
+```
