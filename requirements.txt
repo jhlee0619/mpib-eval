@@ -1,5 +1,3 @@
-vllm>=0.6.0
-transformers>=4.40.0
-numpy
-scipy
+vllm>=0.2.0
 tqdm
+argparse
